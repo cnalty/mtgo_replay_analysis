@@ -1,0 +1,11 @@
+[build-system]
+requires = ["hatchling >= 1.26"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mtgo_replay_analysis"
+version = "0.1.0"
+requires-python = ">=3.10"
+
+[tool.hatch.build.targets.wheel]
+      packages = ["src/mtgo_replay_analysis"]
