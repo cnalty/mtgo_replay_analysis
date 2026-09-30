@@ -2,7 +2,7 @@ import io
 import re
 
 class MTGOReplay:
-    log_splitter = re.compile(r'[^A-Za-z0-9 @:,\-_\+\/\[\]\'\(\)\{\}].*?(?:@P)+')
+    log_splitter = re.compile(r'[^A-Za-z0-9 @:,\-_\+\/\[\]\'\(\)\{\}\.{1,3}].*?(?:@P)+')
 
     def __init__(self, replay_path):
         self.replay_path = replay_path
