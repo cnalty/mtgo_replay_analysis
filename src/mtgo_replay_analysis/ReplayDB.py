@@ -29,7 +29,8 @@ class ReplayDB:
                             g3_p_cards TEXT,
                             g1_op_cards TEXT,
                             g2_op_cards TEXT,
-                            g3_op_cards TEXT
+                            g3_op_cards TEXT,
+                            match_win BOOL
                             )
                             """)
         self.replay_folder = self.get_replay_folder(replay_folder)
@@ -98,7 +99,7 @@ class ReplayDB:
             game_otps[i] = match.otp[i] == self.username
 
         game_mull = [''] * 3
-        for i in range(len(match.mull[0])):
+        for i in range(min(len(match.mull[0]), len(match.mull[1]))):
             game_mull[i] = match.mull[player_idx][i]
 
         player_cards = [''] * 3
@@ -129,9 +130,10 @@ class ReplayDB:
             player_cards[2],
             op_cards[0],
             op_cards[1],
-            op_cards[2]
+            op_cards[2],
+            match.winner == self.username
         )
-        self.cur.execute("""INSERT INTO match_data VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        self.cur.execute("""INSERT INTO match_data VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                             on CONFLICT do NOTHING """, match_vals)
         self.conn.commit()
         return True
