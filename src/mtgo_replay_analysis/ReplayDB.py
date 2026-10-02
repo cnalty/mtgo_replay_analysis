@@ -3,10 +3,19 @@ import warnings
 import json
 import os
 from mtgo_replay_analysis.MTGOReplay import MTGOReplay
-
+from tqdm import tqdm
+from operator import and_
 
 class ReplayDB:
-    def __init__(self, db_path: str, replay_folder: str | None, username: str | None):
+    formats = ('standard',
+               'pioneer',
+               'modern',
+               'legacy',
+               'vintage',
+               'pauper',
+               'premodern')
+
+    def __init__(self, db_path: str, replay_folder: str | None, username: str | None, update_cards: bool = False):
         self.db_path = db_path
         self.conn = sqlite3.connect(db_path)
         self.cur = self.conn.cursor()
@@ -30,11 +39,87 @@ class ReplayDB:
                             g1_op_cards TEXT,
                             g2_op_cards TEXT,
                             g3_op_cards TEXT,
-                            match_win BOOL
+                            match_win BOOL,
+                            format TEXT,
+                            deck TEXT
                             )
                             """)
+        self.cur.execute("""CREATE TABLE if not exists card_data
+                                    (card_name TEXT PRIMARY KEY,
+                                    standard_legal BOOL,
+                                    pioneer_legal BOOL,
+                                    modern_legal BOOL,
+                                    legacy_legal BOOL,
+                                    vintage_legal BOOL,
+                                    pauper_legal BOOL,
+                                    premodern_legal BOOL
+                                    )
+                                    """)
+
+        if update_cards:
+            self.update_cards()
+
         self.replay_folder = self.get_replay_folder(replay_folder)
         self.username = self.get_username(username)
+
+    def update_cards(self):
+        with open("oracle-cards-20261002090157.jsonl", 'r') as f:
+            num_lines = sum(1 for line in f)
+        with open("oracle-cards-20261002090157.jsonl", 'r') as f:
+            for line in tqdm(f, desc="Updating card legality", total=num_lines):
+                curr_card = json.loads(line)
+
+                # Check for not real cards
+                if "Token" in curr_card['type_line']:
+                    continue
+                if "Emblem" == curr_card['type_line']:
+                    continue
+                if curr_card['set_type'] == 'memorabilia':
+                    continue
+                #if len(curr_card['games']) == 1 and curr_card['games'][0] == 'arena':
+                #    continue
+
+                # Check if card is split card, split up names for processing purposes
+                if r"//" in curr_card['name']:
+                    card_names = curr_card['name'].split(r"//")
+                    card_names = [x.strip() for x in card_names]
+                else:
+                    card_names = [curr_card['name']]
+
+                # Process Card
+                legals = []
+                for cformat in self.formats:
+                    legals.append(curr_card['legalities'][cformat] == 'legal' or curr_card['legalities'][cformat] == 'restricted')
+                for card_name in card_names:
+                    self.cur.execute("""
+                            INSERT INTO card_data VALUES
+                                (?, ?, ?, ?, ?, ?, ?, ?)
+                                ON CONFLICT (card_name) DO UPDATE SET
+                                    standard_legal = excluded.standard_legal,
+                                    pioneer_legal = excluded.pioneer_legal,
+                                    modern_legal = excluded.modern_legal,
+                                    legacy_legal = excluded.legacy_legal,
+                                    vintage_legal = excluded.vintage_legal,
+                                    pauper_legal = excluded.pauper_legal,
+                                    premodern_legal = excluded.premodern_legal
+                            """, (card_name, *legals))
+
+        self.conn.commit()
+
+    def get_legal(self, card_name: str) -> list:
+        self.cur.execute("""
+                            SELECT * from card_data where card_name = ?
+                            """, (card_name,))
+        row = self.cur.fetchone()
+        if row is None:
+            warnings.warn("Card ({}) not found, returning illegal in all formats")
+            return [False] * len(self.formats)
+        return row[1:]
+
+
+    def get_legal_format(self, card_name: str, format: str) -> bool:
+        pass
+
 
     # Initialize replay folder
     def get_replay_folder(self, replay_folder: str | None) -> str:
@@ -131,9 +216,12 @@ class ReplayDB:
             op_cards[0],
             op_cards[1],
             op_cards[2],
-            match.winner == self.username
+            match.winner == self.username,
+            self.detect_format(match),
+            self.detect_deck(match)
         )
-        self.cur.execute("""INSERT INTO match_data VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        self.cur.execute("""INSERT INTO match_data VALUES 
+        (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                             on CONFLICT do NOTHING """, match_vals)
         self.conn.commit()
         return True
@@ -143,3 +231,24 @@ class ReplayDB:
             if entry.name.startswith("Match_GameLog"):
                 curr_match = MTGOReplay(entry.path)
                 self.add(curr_match)
+
+    def detect_format(self, match: MTGOReplay) -> str:
+        all_cards = set()
+        for games in match.cards[0]:
+            all_cards.update(games)
+        for games in match.cards[1]:
+            all_cards.update(games)
+        possible_formats = [True] * len(self.formats)
+        for card in all_cards:
+            curr_formats = self.get_legal(card)
+            possible_formats = list(map(and_, curr_formats, possible_formats))
+            if sum(possible_formats) == 0:
+                warnings.warn(f"Warning could not detect format for match id: {match.match_id}, ({card})")
+                return ""
+        for i in range(len(possible_formats)):
+            if possible_formats[i]:
+                return self.formats[i]
+
+
+    def detect_deck(self, match: MTGOReplay) -> str:
+        return ""

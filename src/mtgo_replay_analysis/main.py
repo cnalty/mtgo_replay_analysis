@@ -7,6 +7,13 @@ def main(args):
     db.add_all()
     for row in db.cur.execute("SELECT * FROM match_data"):
         print(row)
+    db.cur.execute("""
+                    SELECT SUM(match_win) FROM match_data
+                    """)
+    wins = db.cur.fetchone()[0]
+    db.cur.execute("SELECT COUNT(match_id) FROM match_data")
+    matches = db.cur.fetchone()[0]
+    print(wins / matches * 100)
 
 
 def parse_arguments():
