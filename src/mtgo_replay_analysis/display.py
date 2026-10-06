@@ -1,7 +1,11 @@
-from PySide6.QtWidgets import (QWidget, QTableWidget,
-                               QTableWidgetItem, QMainWindow, QVBoxLayout, QLabel)
+import typing
+
+from PySide6.QtWidgets import (QWidget, QMainWindow, QVBoxLayout, QLabel, QTableView,
+                               QHeaderView, QHBoxLayout, QSizePolicy)
+from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
 from mtgo_replay_analysis.ReplayDB import ReplayDB
 import sys
+
 
 class DisplayDriver(QMainWindow):
     def __init__(self, db: ReplayDB) -> None:
@@ -12,38 +16,92 @@ class DisplayDriver(QMainWindow):
         layout = QVBoxLayout()
 
         # Match Info Widget
-        self.table = QTableWidget()
-        self.columns = ["Date", "Opponent", "Win/Loss", "Format", "Player Deck", "Opponent Deck"]
-        self.table.setColumnCount(6)
-        self.table.setHorizontalHeaderLabels(self.columns)
-        rows = self.get_all_rows()
-        self.table.setRowCount(len(rows))
-        self.insert_all_rows(rows)
+        self.table = MTGODataWidget(db)
 
         # Win Rate Info
         widget = QWidget()
         widget.setLayout(layout)
         self.setCentralWidget(widget)
-        win_rate = sum(row[2] for row in rows) / len(rows) * 100
+        win_rate = sum(int(self.table.model.data(self.table.model.createIndex(i, 2))) for i in range(self.table.model.rowCount())) / self.table.model.rowCount() * 100
         self.win_rate_widget = QLabel(f"Win Rate: {win_rate:.2f}%")
 
         layout.addWidget(self.table)
         layout.addWidget(self.win_rate_widget)
         #sys.exit(self.app.exec())
 
-    def get_all_rows(self):
+
+class MatchTableModel(QAbstractTableModel):
+    def __init__(self, db: ReplayDB) -> None:
+        super().__init__()
+        # Pre Load Data
+        self.db = db
+        self.row_data = []
+        self.labels = ("Date", "Opponent", "Win/Loss", "Format", "Player Deck", "Opponent Deck")
+
+        # Load Data
+        self.load_data()
+
+        # Post Load Data
+        self.column_count = 6
+        self.row_count = len(self.row_data)
+
+    def load_data(self) -> None:
         self.db.cur.execute("SELECT * FROM match_data")
         db_rows = self.db.cur.fetchall()
-        display_rows = []
         for row in db_rows:
-            display_rows.append([row[1], row[3], row[-4], row[-3], row[-2], row[-1]])
+            # "Date", "Opponent", "Win/Loss", "Format", "Player Deck", "Opponent Deck", "MatchID"
+            self.row_data.append([row[1], row[3], row[-4], row[-3], row[-2], row[-1], row[0]])
 
-        return display_rows
+    def rowCount(self, parent=QModelIndex()) -> int:
+        return self.row_count
 
-    def insert_row(self, row: list, row_num) -> None:
-        for i in range(len(row)):
-            self.table.setItem(row_num, i, QTableWidgetItem(str(row[i])))
+    def columnCount(self, parent=QModelIndex()) -> int:
+        return self.column_count
 
-    def insert_all_rows(self, rows) -> None:
-        for i in range(len(rows)):
-            self.insert_row(rows[i], i)
+    def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
+        if role != Qt.ItemDataRole.DisplayRole:
+            return None
+        if orientation == Qt.Orientation.Horizontal:
+            return self.labels[section]
+        else:
+            return f"{section}"
+
+    def data(self, index, role=Qt.ItemDataRole.DisplayRole):
+        column = index.column()
+        row = index.row()
+        if role == Qt.ItemDataRole.DisplayRole:
+            return str(self.row_data[row][column])
+        elif role == Qt.ItemDataRole.UserRole:
+            # Return Match ID, used to know where to edit db
+            return str(self.row_data[row][-1])
+        return None
+
+
+class MTGODataWidget(QWidget):
+    def __init__(self, db: ReplayDB) -> None:
+        super().__init__()
+        self.model = MatchTableModel(db)
+
+        # Create View
+        self.table_view = QTableView()
+        self.table_view.setModel(self.model)
+
+        # Set Headers
+        self.horizontal_header = self.table_view.horizontalHeader()
+        self.vertical_header = self.table_view.verticalHeader()
+        self.horizontal_header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        self.vertical_header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        self.horizontal_header.setStretchLastSection(True)
+
+
+        # QWidget Layout
+        self.main_layout = QHBoxLayout()
+        size = QSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
+
+        # Left layout
+        size.setHorizontalStretch(1)
+        self.table_view.setSizePolicy(size)
+        self.main_layout.addWidget(self.table_view)
+
+        # Set the layout to the QWidget
+        self.setLayout(self.main_layout)
