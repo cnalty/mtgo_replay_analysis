@@ -2,7 +2,8 @@ import typing
 
 from PySide6.QtWidgets import (QWidget, QMainWindow, QVBoxLayout, QLabel, QTableView,
                                QHeaderView, QHBoxLayout, QSizePolicy)
-from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
+from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt, QSortFilterProxyModel
+from PySide6.QtGui import QIcon, QKeySequence
 from mtgo_replay_analysis.ReplayDB import ReplayDB
 import sys
 
@@ -14,6 +15,13 @@ class DisplayDriver(QMainWindow):
         #self.app = QApplication()
         self.db = db
         layout = QVBoxLayout()
+        # Menu
+        self.menu = self.menuBar()
+        file_menu = self.menu.addMenu("File")
+
+        # Exit QAction
+        file_menu.addAction(QIcon.fromTheme(QIcon.ThemeIcon.ApplicationExit),
+                            "Exit", QKeySequence.StandardKey.Quit, self.close)
 
         # Match Info Widget
         self.table = MTGODataWidget(db)
@@ -82,25 +90,30 @@ class MTGODataWidget(QWidget):
         super().__init__()
         self.model = MatchTableModel(db)
 
+        # Setup Proxy
+        self.proxy_model = QSortFilterProxyModel()
+        self.proxy_model.setSourceModel(self.model)
+
         # Create View
         self.table_view = QTableView()
-        self.table_view.setModel(self.model)
+        self.table_view.setModel(self.proxy_model)
+        self.table_view.setSortingEnabled(True)
 
         # Set Headers
         self.horizontal_header = self.table_view.horizontalHeader()
         self.vertical_header = self.table_view.verticalHeader()
         self.horizontal_header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         self.vertical_header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-        self.horizontal_header.setStretchLastSection(True)
+        #self.horizontal_header.setStretchLastSection(True)
 
 
         # QWidget Layout
         self.main_layout = QHBoxLayout()
-        size = QSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
+        #size = QSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
 
         # Left layout
-        size.setHorizontalStretch(1)
-        self.table_view.setSizePolicy(size)
+        #size.setHorizontalStretch(1)
+        #self.table_view.setSizePolicy(size)
         self.main_layout.addWidget(self.table_view)
 
         # Set the layout to the QWidget
