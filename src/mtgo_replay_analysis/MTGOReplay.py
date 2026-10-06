@@ -28,7 +28,7 @@ class MTGOReplay:
         self.replay_text = ""
         with io.open(self.replay_path, "r", encoding="latin1") as f:
             self.replay_text = f.read()
-        self.match_date = time.ctime(os.path.getmtime(self.replay_path))
+        self.match_date = time.strftime("%Y/%m/%d", time.localtime(os.path.getmtime(self.replay_path)))
         self.match_id = Path(self.replay_path).stem.replace("Match_GameLog_", "")
         self.parse_replay()
 

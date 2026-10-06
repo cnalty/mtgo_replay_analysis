@@ -2,6 +2,8 @@ import sqlite3
 import warnings
 import json
 import os
+from typing import List, Tuple
+
 from mtgo_replay_analysis.MTGOReplay import MTGOReplay
 from tqdm import tqdm
 from operator import and_
@@ -41,7 +43,8 @@ class ReplayDB:
                             g3_op_cards TEXT,
                             match_win BOOL,
                             format TEXT,
-                            deck TEXT
+                            player_deck TEXT,
+                            opponent_deck TEXT
                             )
                             """)
         self.cur.execute("""CREATE TABLE if not exists card_data
@@ -195,7 +198,7 @@ class ReplayDB:
         for i in range(len(match.cards[op_idx])):
             op_cards[i] = json.dumps(list(match.cards[op_idx][i]))
 
-
+        decks = self.detect_decks(match)
         match_vals = (
             match.match_id,
             match.match_date,
@@ -218,10 +221,11 @@ class ReplayDB:
             op_cards[2],
             match.winner == self.username,
             self.detect_format(match),
-            self.detect_deck(match)
+            decks[0],
+            decks[1],
         )
         self.cur.execute("""INSERT INTO match_data VALUES 
-        (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                             on CONFLICT do NOTHING """, match_vals)
         self.conn.commit()
         return True
@@ -250,5 +254,5 @@ class ReplayDB:
                 return self.formats[i]
 
 
-    def detect_deck(self, match: MTGOReplay) -> str:
-        return ""
+    def detect_decks(self, match: MTGOReplay) -> Tuple[str]:
+        return ("foo", "bar")
