@@ -1,7 +1,8 @@
 import typing
 from PySide6.QtWidgets import (QWidget, QMainWindow, QVBoxLayout, QLabel, QTableView,
-                               QHeaderView, QHBoxLayout, QSizePolicy, QGridLayout, QComboBox)
-from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt, QSortFilterProxyModel
+                               QHeaderView, QHBoxLayout, QSizePolicy, QGridLayout, QComboBox,
+                               QHBoxLayout, QDateTimeEdit,)
+from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt, QSortFilterProxyModel, QDate
 from PySide6.QtGui import QIcon, QKeySequence
 from mtgo_replay_analysis.ReplayDB import ReplayDB
 import sys
@@ -26,12 +27,16 @@ class DisplayDriver(QMainWindow):
 
         # Match Info Widget
         self.table = MTGODataWidget(db)
+        self.table.vertical_header.setVisible(False)
 
-        # Win Rate Info
+        # Text Info
         win_rate = sum(int(self.table.model.data(self.table.model.createIndex(i, 2))) for i in range(self.table.model.rowCount())) / self.table.model.rowCount() * 100
         self.win_rate_widget = QLabel(f"Win Rate: {win_rate:.2f}%")
 
-        # Filter Boxes
+        matches_played = self.table.model.rowCount()
+        self.matches_played_widget = QLabel(f"Matches Played: {matches_played}")
+
+        # Format Filter
         self.format_drop_down = QComboBox()
         self.format_drop_down.addItems(['',
                        'standard',
@@ -43,32 +48,47 @@ class DisplayDriver(QMainWindow):
                        'premodern',
                        'missing'])
         self.format_drop_down.currentTextChanged.connect(self.table.proxy_model.setFilterbyFormat)
-        self.format_drop_down.currentTextChanged.connect(self.update_win_rate)
+        self.format_drop_down.currentTextChanged.connect(self.update_text_info_after_filter)
 
+        self.format_label = QLabel("Format:")
+
+        # Date Stuff
+        self.date_begin_label = QLabel("Start Date:")
+        self.date_end_label = QLabel("End Date:")
+
+        self.default_min_date = QDate(1999, 1, 1)
+        self.default_max_date = QDate(2099, 1, 1)
+
+        self.date_begin_input = QDateTimeEdit(self.default_min_date)
+        self.date_begin_input.setDisplayFormat("MM/dd/yyyy")
+        self.date_begin_input.dateChanged.connect(self.update_min_date)
+        self.date_begin_input.setMaximumDate(self.default_max_date)
+
+        self.date_end_input = QDateTimeEdit(self.default_max_date)
+        self.date_end_input.setDisplayFormat("MM/dd/yyyy")
+        self.date_end_input.dateChanged.connect(self.update_max_date)
+        self.date_end_input.setMinimumDate(self.default_min_date)
 
 
         # Place Widgets
-        layout.addWidget(self.table, 0, 0, 0, 1)
-        layout.addWidget(self.win_rate_widget, 0, 1)
-        layout.addWidget(self.format_drop_down, 1, 1)
+        layout.addWidget(self.table, 0, 0, 10, 1)
+        layout.addWidget(self.win_rate_widget, 0, 1, 1, 2)
+        layout.addWidget(self.matches_played_widget, 1, 1, 1, 2)
+        layout.addWidget(self.format_label, 2, 1)
+        layout.addWidget(self.format_drop_down, 2, 2)
+        layout.addWidget(self.date_begin_label, 3, 1)
+        layout.addWidget(self.date_begin_input, 3, 2)
+        layout.addWidget(self.date_end_label, 4, 1)
+        layout.addWidget(self.date_end_input, 4, 2)
 
-        # Make the widget
+        # Make Main Window
         widget = QWidget()
         widget.setLayout(layout)
         self.setCentralWidget(widget)
         #sys.exit(self.app.exec())
 
-    def update_win_rate(self):
+    def update_text_info_after_filter(self):
         num_rows = self.table.proxy_model.rowCount()
-        '''win_rate = 0
-        for i in range(num_rows):
-            idx = self.table.proxy_model.index(i, 2)
-            print(idx)
-            w_l = self.table.proxy_model.data(idx)
-            print(w_l)
-            win_rate += int(w_l)
-        win_rate /= num_rows
-        win_rate *= 100'''
         if num_rows == 0:
             win_rate = 0
         else:
@@ -76,6 +96,21 @@ class DisplayDriver(QMainWindow):
                        range(num_rows)) / num_rows * 100
 
         self.win_rate_widget.setText(f"Win Rate: {win_rate:.2f}%")
+        self.matches_played_widget.setText(f"Matches Played: {num_rows}")
+
+    def update_min_date(self):
+        d_min = self.date_begin_input.date()
+        d_max = self.date_end_input.date().toString('yyyy/MM/dd')
+        self.date_end_input.setMinimumDate(d_min)
+        self.table.proxy_model.setFilterbyDate(d_min.toString('yyyy/MM/dd'), d_max)
+        self.update_text_info_after_filter()
+
+    def update_max_date(self):
+        d_min = self.date_begin_input.date().toString('yyyy/MM/dd')
+        d_max = self.date_end_input.date()
+        self.date_begin_input.setMaximumDate(d_max)
+        self.table.proxy_model.setFilterbyDate(d_min, d_max.toString('yyyy/MM/dd'))
+        self.update_text_info_after_filter()
 
 
 '''
