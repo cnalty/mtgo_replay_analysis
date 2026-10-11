@@ -5,6 +5,8 @@ from PySide6.QtWidgets import (QWidget, QMainWindow, QVBoxLayout, QLabel, QTable
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt, QSortFilterProxyModel, QDate
 from PySide6.QtGui import QIcon, QKeySequence
 from mtgo_replay_analysis.ReplayDB import ReplayDB
+from .deck_tools.goldfish_scraper import scrape_goldfish
+from tqdm import tqdm
 import sys
 
 '''
@@ -14,16 +16,27 @@ class DisplayDriver(QMainWindow):
     def __init__(self, db: ReplayDB) -> None:
         super().__init__()
         self.setWindowTitle("MTGO Replay Analysis")
-        #self.app = QApplication()
         self.db = db
         layout = QGridLayout()
+
+        self.constructed_formats = ['standard',
+                       'pioneer',
+                       'modern',
+                       'legacy',
+                       'vintage',
+                       'pauper',
+                       'premodern']
+
         # Menu
         self.menu = self.menuBar()
         file_menu = self.menu.addMenu("File")
+        options_menu = self.menu.addMenu("Options")
 
         # Exit QAction
         file_menu.addAction(QIcon.fromTheme(QIcon.ThemeIcon.ApplicationExit),
                             "Exit", QKeySequence.StandardKey.Quit, self.close)
+        file_menu.addAction("Update Decks", self.db.update_decks)
+        file_menu.addAction("Assign Decks", self.assign_decks)
 
         # Match Info Widget
         self.table = MTGODataWidget(db)
@@ -85,7 +98,7 @@ class DisplayDriver(QMainWindow):
         widget = QWidget()
         widget.setLayout(layout)
         self.setCentralWidget(widget)
-        #sys.exit(self.app.exec())
+
 
     def update_text_info_after_filter(self):
         num_rows = self.table.proxy_model.rowCount()
@@ -112,6 +125,9 @@ class DisplayDriver(QMainWindow):
         self.table.proxy_model.setFilterbyDate(d_min, d_max.toString('yyyy/MM/dd'))
         self.update_text_info_after_filter()
 
+
+    def assign_decks(self):
+        pass
 
 '''
 

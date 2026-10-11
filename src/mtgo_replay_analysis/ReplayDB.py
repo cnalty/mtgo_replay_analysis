@@ -17,7 +17,11 @@ class ReplayDB:
                'pauper',
                'premodern')
 
-    def __init__(self, db_path: str, replay_folder: str | None, username: str | None, update_cards: bool = False):
+    def __init__(self, db_path: str,
+                 replay_folder: str | None,
+                 username: str | None,
+                 update_cards: bool = False,
+                 update_decks: bool = False):
         self.db_path = db_path
         self.conn = sqlite3.connect(db_path)
         self.cur = self.conn.cursor()
@@ -61,7 +65,9 @@ class ReplayDB:
 
         if update_cards:
             self.update_cards()
-
+        if update_decks:
+            self.update_decks(None)
+        self.decklists = self.load_decklists()
         self.replay_folder = self.get_replay_folder(replay_folder)
         self.username = self.get_username(username)
 
@@ -167,7 +173,6 @@ class ReplayDB:
     def add(self, match: MTGOReplay) -> bool:
         p1 = match.players[0]
         p2 = match.players[1]
-        player_idx, op_idx = None, None
         # Verify user was in replay, exit if not
         if p1 == self.username:
             player_idx, op_idx = 0, 1
@@ -198,7 +203,9 @@ class ReplayDB:
         for i in range(len(match.cards[op_idx])):
             op_cards[i] = json.dumps(list(match.cards[op_idx][i]))
 
-        decks = self.detect_decks(match)
+        match_format = self.detect_format(match)
+
+        decks = self.detect_match_decks(match, match_format)
         match_vals = (
             match.match_id,
             match.match_date,
@@ -220,13 +227,15 @@ class ReplayDB:
             op_cards[1],
             op_cards[2],
             match.winner == self.username,
-            self.detect_format(match),
-            decks[0],
-            decks[1],
+            match_format,
+            decks[player_idx],
+            decks[op_idx],
         )
-        self.cur.execute("""INSERT INTO match_data VALUES 
-        (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                            on CONFLICT do NOTHING """, match_vals)
+        self.cur.execute("""INSERT or REPLACE INTO match_data VALUES 
+                            (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            
+                            """,
+                         match_vals)
         self.conn.commit()
         return True
 
@@ -253,6 +262,88 @@ class ReplayDB:
             if possible_formats[i]:
                 return self.formats[i]
 
+    def load_decklists(self):
+        self.cur.execute("""
+                        SELECT DISTINCT deck_format
+                        FROM decks
+                        """)
+        formats_available = self.cur.fetchall()
+        decklists = {}
+        for (f,) in formats_available:
+            decklists[f] = {}
+            self.cur.execute("""
+                            SELECT DISTINCT deck_name
+                            FROM decks WHERE deck_format = ?
+                            """, (f,))
+            decknames = self.cur.fetchall()
+            for (deck,) in decknames:
+                decklists[f][deck] = set()
+                self.cur.execute("""
+                                SELECT * FROM decks
+                                WHERE deck_format = ? AND deck_name = ?
+                                """, (f, deck))
+                cards = self.cur.fetchall()
+                for (_, _, card, card_count, card_frequency) in cards:
+                    decklists[f][deck].add(card)
 
-    def detect_decks(self, match: MTGOReplay) -> Tuple[str]:
-        return ("foo", "bar")
+        return decklists
+
+
+
+
+    def update_decks(self, game_format: str | None = 'legacy'):
+        '''if game_format is None:
+            new_decks = scrape_goldfish(self.constructed_formats)
+        else:
+            new_decks = scrape_goldfish([game_format])
+        '''
+        import pickle
+        with open('deck_info.pkl', 'rb') as f:
+            new_decks = pickle.load(f)
+
+        self.cur.execute("""
+                            CREATE TABLE IF NOT EXISTS decks (
+                            deck_format TINYTEXT,
+                            deck_name TINYTEXT,
+                            card_name TINYTEXT,
+                            card_count FLOAT(24),
+                            card_frequency FLOAT(24)
+                            )
+                            """)
+        for f, decklists in tqdm(new_decks.items()):
+            # Remove
+            self.cur.execute('DELETE FROM decks WHERE deck_format = ?', (f,))
+            for deck, cards in decklists.items():
+                for card_name, (card_count, card_frequency) in cards.items():
+                    self.cur.execute("""
+                                        INSERT into decks VALUES (
+                                        ?, ?, ?, ?, ?
+                                        )
+                                        """, (f, deck, card_name, card_count, card_frequency))
+        self.decklists = new_decks
+        self.conn.commit()
+
+    def detect_match_decks(self, match: MTGOReplay, match_format) -> Tuple[str]:
+        p1_cards = set()
+        p2_cards = set()
+        for i in range(len(match.cards[0])):
+            p1_cards.update(match.cards[0][i])
+            p2_cards.update(match.cards[1][i])
+
+        p1_best_match = ("Unknown", 0)
+        p2_best_match = ("Unknown", 0)
+        if match_format in self.decklists.keys():
+            for deck, cards in self.decklists[match_format].items():
+                curr_p1_score = len(cards.intersection(p1_cards))
+                curr_p1_score -= len(p1_cards.difference(cards))
+                curr_p2_score = len(cards.intersection(p2_cards))
+                curr_p2_score -= len(p2_cards.difference(cards))
+
+                if curr_p1_score > p1_best_match[1]:
+                    p1_best_match = (deck, curr_p1_score)
+                if curr_p2_score > p2_best_match[1]:
+                    p2_best_match = (deck, curr_p2_score)
+        else:
+            return ('foo', 'bar')
+
+        return (p1_best_match[0], p2_best_match[0])
