@@ -7,6 +7,7 @@ from typing import List, Tuple
 from mtgo_replay_analysis.MTGOReplay import MTGOReplay
 from tqdm import tqdm
 from operator import and_
+import requests
 
 class ReplayDB:
     formats = ('standard',
@@ -21,7 +22,7 @@ class ReplayDB:
                  replay_folder: str | None,
                  username: str | None,
                  update_cards: bool = False,
-                 update_decks: bool = False):
+                 update_decks: bool = True):
         self.db_path = db_path
         self.conn = sqlite3.connect(db_path)
         self.cur = self.conn.cursor()
@@ -59,10 +60,15 @@ class ReplayDB:
                                     legacy_legal BOOL,
                                     vintage_legal BOOL,
                                     pauper_legal BOOL,
-                                    premodern_legal BOOL
+                                    premodern_legal BOOL,
+                                    printings TEXT
                                     )
                                     """)
-
+        self.request_headers = {
+            'User-Agent': 'MTGOReplayAnalysis-Rudabega/0.1',
+            'Accept': '*/*'
+        }
+        self.all_sets = self.get_sets()
         if update_cards:
             self.update_cards()
         if update_decks:
@@ -71,30 +77,38 @@ class ReplayDB:
         self.replay_folder = self.get_replay_folder(replay_folder)
         self.username = self.get_username(username)
 
+
+
     def update_cards(self):
-        with open("oracle-cards-20261002090157.jsonl", 'r') as f:
+        with open("default-cards-20261012090545.jsonl", 'r') as f:
             num_lines = sum(1 for line in f)
-        with open("oracle-cards-20261002090157.jsonl", 'r') as f:
+        with open("default-cards-20261012090545.jsonl", 'r') as f:
             for line in tqdm(f, desc="Updating card legality", total=num_lines):
                 curr_card = json.loads(line)
 
                 # Check for not real cards
+                if 'type_line' not in curr_card.keys():
+                    continue
                 if "Token" in curr_card['type_line']:
                     continue
                 if "Emblem" == curr_card['type_line']:
                     continue
                 if curr_card['set_type'] == 'memorabilia':
                     continue
-                #if len(curr_card['games']) == 1 and curr_card['games'][0] == 'arena':
-                #    continue
+                if len(curr_card['games']) == 1 and curr_card['games'][0] == 'arena':
+                    continue
 
                 # Check if card is split card, split up names for processing purposes
+
                 if r"//" in curr_card['name']:
                     card_names = curr_card['name'].split(r"//")
                     card_names = [x.strip() for x in card_names]
+                elif 'printed_name' in curr_card.keys():
+                    card_names = [curr_card['printed_name']]
                 else:
                     card_names = [curr_card['name']]
 
+                printing = curr_card['set']
                 # Process Card
                 legals = []
                 for cformat in self.formats:
@@ -102,7 +116,7 @@ class ReplayDB:
                 for card_name in card_names:
                     self.cur.execute("""
                             INSERT INTO card_data VALUES
-                                (?, ?, ?, ?, ?, ?, ?, ?)
+                                (?, ?, ?, ?, ?, ?, ?, ?, ?)
                                 ON CONFLICT (card_name) DO UPDATE SET
                                     standard_legal = excluded.standard_legal,
                                     pioneer_legal = excluded.pioneer_legal,
@@ -110,10 +124,19 @@ class ReplayDB:
                                     legacy_legal = excluded.legacy_legal,
                                     vintage_legal = excluded.vintage_legal,
                                     pauper_legal = excluded.pauper_legal,
-                                    premodern_legal = excluded.premodern_legal
-                            """, (card_name, *legals))
+                                    premodern_legal = excluded.premodern_legal,
+                                    printings = CONCAT(excluded.printings, ', ', ?)
+                            """, (card_name, *legals, printing, printing))
 
         self.conn.commit()
+
+    def get_sets(self):
+        response = requests.get("https://api.scryfall.com/sets", headers=self.request_headers)
+        set_info = json.loads(response.text)['data']
+        all_sets = set()
+        for s in set_info:
+            all_sets.add(s['code'])
+        return all_sets
 
     def get_legal(self, card_name: str) -> list:
         self.cur.execute("""
@@ -129,6 +152,15 @@ class ReplayDB:
     def get_legal_format(self, card_name: str, format: str) -> bool:
         pass
 
+    def get_printings(self, card_name: str) -> list[str]:
+        self.cur.execute("""
+                        SELECT printings
+                        FROM card_data
+                        WHERE card_name = ?
+                        """, (card_name,))
+        printings = self.cur.fetchone()[0]
+        printings = printings.split(", ")
+        return printings
 
     # Initialize replay folder
     def get_replay_folder(self, replay_folder: str | None) -> str:
@@ -246,21 +278,38 @@ class ReplayDB:
                 self.add(curr_match)
 
     def detect_format(self, match: MTGOReplay) -> str:
+        if match.is_singleton:
+            return "cube"
         all_cards = set()
         for games in match.cards[0]:
             all_cards.update(games)
         for games in match.cards[1]:
             all_cards.update(games)
         possible_formats = [True] * len(self.formats)
+        could_be_limited = True
+        limited_possibilities = self.all_sets
+
         for card in all_cards:
             curr_formats = self.get_legal(card)
+            if could_be_limited:
+                curr_sets = self.get_printings(card)
+                limited_possibilities = limited_possibilities.intersection(curr_sets)
+                if len(limited_possibilities) == 0:
+                    could_be_limited = False
             possible_formats = list(map(and_, curr_formats, possible_formats))
+
             if sum(possible_formats) == 0:
+                if card == "Gleemox":
+                    return "cube"
                 warnings.warn(f"Warning could not detect format for match id: {match.match_id}, ({card})")
                 return ""
+        if could_be_limited:
+            return "limited"
         for i in range(len(possible_formats)):
             if possible_formats[i]:
                 return self.formats[i]
+
+
 
     def load_decklists(self):
         self.cur.execute("""
@@ -344,6 +393,6 @@ class ReplayDB:
                 if curr_p2_score > p2_best_match[1]:
                     p2_best_match = (deck, curr_p2_score)
         else:
-            return ('foo', 'bar')
+            return ('Unknown', 'Unknown')
 
         return (p1_best_match[0], p2_best_match[0])

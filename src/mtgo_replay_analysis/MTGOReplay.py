@@ -44,7 +44,9 @@ class MTGOReplay:
         self.otp = []
         self.mull = [[], []]
         self.cards = [[set()], [set()]]
+        self.is_singleton = True
         for i in range(len(self.action_list)):
+            self.action_list[i] = self.action_list[i].replace("Ã³", "ó")
             check_game_end = re.match(self.game_end, self.action_list[i])
             if check_game_end is not None:
                 self.game_ends.append(i)
@@ -59,12 +61,17 @@ class MTGOReplay:
 
             card = re.match(self.card_played_match, self.action_list[i])
             if card is not None:
+
                 if card.group(1) == self.players[0]:
                     self.cards[0][-1].add(card.group(2))
+                    if self.is_singleton:
+                        self.is_singleton = (not card.group(2) in self.cards[0][-1])
                 elif card.group(1) == self.players[1]:
                     self.cards[1][-1].add(card.group(2))
+                    if self.is_singleton:
+                        self.is_singleton = (not card.group(2) in self.cards[1][-1])
                 else:
-                    warnings.warn(f"Detected played card, but could not match player for: {self.action_list[i]}")
+                    warnings.warn(f"Detected played card, but could not match player ({self.players[0], self.players[1]},)for: {self.action_list[i]}")
             is_otp = re.match(self.otp_match, self.action_list[i])
             if is_otp is not None:
                 self.otp.append(is_otp.group(1))
