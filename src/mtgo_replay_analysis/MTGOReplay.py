@@ -8,11 +8,11 @@ import time
 class MTGOReplay:
     log_splitter = re.compile(r'[^A-Za-z0-9 @:,\-_\+\/\[\]\'\(\)\{\}\.{1,3}].*?(?:@P)+')
     parse_player = re.compile(r'[A-Za-z0-9\-_]+')
-    card_played_match = re.compile(r'(\w+)\s(?:plays|casts)\s@\[([\w\s,\']+)@')
-    game_end = re.compile(r'(\w+)\swins\sthe\sgame')
-    mull_match = re.compile(r'(\w+).*begins\sthe\sgame\swith\s([a-z]+)\scards')
-    otp_match = re.compile(r'(\w+)\schooses\sto\splay\sfirst')
-    end_match = re.compile(r'(\w+)\swins\sthe\smatch\s([0-9])-([0-9])')
+    card_played_match = re.compile(r'([A-Za-z0-9\-_]+)\s(?:plays|casts)\s@\[([\w\s,\']+)@')
+    game_end = re.compile(r'([A-Za-z0-9\-_]+)\swins\sthe\sgame')
+    mull_match = re.compile(r'([A-Za-z0-9\-_]+).*begins\sthe\sgame\swith\s([a-z]+)\scards')
+    otp_match = re.compile(r'([A-Za-z0-9\-_]+)\schooses\sto\splay\sfirst')
+    end_match = re.compile(r'([A-Za-z0-9\-_]+)\swins\sthe\smatch\s([0-9])-([0-9])')
     hand_size = {"zero" : 0,
                  "one" : 1,
                  "two" : 2,
@@ -45,6 +45,7 @@ class MTGOReplay:
         self.mull = [[], []]
         self.cards = [[set()], [set()]]
         self.is_singleton = True
+        self.winner = None
         for i in range(len(self.action_list)):
             self.action_list[i] = self.action_list[i].replace("Ã³", "ó")
             check_game_end = re.match(self.game_end, self.action_list[i])
@@ -82,13 +83,12 @@ class MTGOReplay:
                 elif mull_size.group(1) == self.players[1]:
                     self.mull[1].append(self.hand_size[mull_size.group(2)])
             is_match_win = re.match(self.end_match, self.action_list[i])
-            '''if is_match_win is not None:
+            if is_match_win is not None:
                 self.winner = is_match_win.group(1)
-                self.game_score = is_match_win.group(2), is_match_win.group(3)
-                self.cards[0].pop(-1)
-                self.cards[1].pop(-1)'''
+                #self.game_score = is_match_win.group(2), is_match_win.group(3)
 
-        self.winner = self.players[0] if self.game_score[0] > self.game_score[1] else self.players[1]
+        if self.winner is None:
+            self.winner = self.players[0] if self.game_score[0] > self.game_score[1] else self.players[1]
         self.cards[0].pop(-1)
         self.cards[1].pop(-1)
 
