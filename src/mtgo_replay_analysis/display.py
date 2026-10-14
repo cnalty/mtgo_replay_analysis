@@ -12,10 +12,81 @@ import sys
 class PopOutMatchInfoWindow(QWidget):
     def __init__(self, match_info):
         super().__init__()
+        print(match_info)
         self.match_info = match_info
-        self.setWindowTitle("Match Info")
-        layout = QVBoxLayout()
+
+        self.match_id = match_info[0]
+        self.date = match_info[1]
+        self.player = match_info[2]
+        self.opponent = match_info[3]
+        self.game_wins = match_info[4:7]
+        self.otps = match_info[7:10]
+        self.mulls = match_info[10:13]
+        self.p_cards = list(match_info[13:16])
+        self.op_cards = list(match_info[16:19])
+        self.match_win = match_info[19]
+        self.match_format = match_info[20]
+        self.p_deck = match_info[21]
+        self.op_deck = match_info[22]
+
+        for i in range(len(self.p_cards)):
+            self.p_cards[i] = self.p_cards[i].replace('\", \"', '\n')
+            self.p_cards[i] = self.p_cards[i].replace('\"', '')
+            self.p_cards[i] = self.p_cards[i].replace('[', '')
+            self.p_cards[i] = self.p_cards[i].replace(']', '')
+
+
+            self.op_cards[i] = self.op_cards[i].replace('\", \"', '\n')
+            self.op_cards[i] = self.op_cards[i].replace('\"', '')
+            self.op_cards[i] = self.op_cards[i].replace('[', '')
+            self.op_cards[i] = self.op_cards[i].replace(']', '')
+
+
+
+        self.setWindowTitle(f"Match Info - {match_info[0]}")
+        layout = QGridLayout()
+
+
+        # Labels
+        #self.op_label = QLabel(f"Opponent: ")
+        self.p_deck_label = QLabel(f"{self.p_deck}")
+        self.op_deck_label = QLabel(f"{self.opponent} on {self.op_deck}")
+        self.vs_label = QLabel("vs.")
+        self.g1_label = QLabel("Game 1")
+        self.g2_label = QLabel("Game 2")
+        self.g3_label = QLabel("Game 3")
+
+        self.p_g1_cards = QLabel(f"{self.p_cards[0]}")
+        self.p_g2_cards = QLabel(f"{self.p_cards[1]}")
+        self.p_g3_cards = QLabel(f"{self.p_cards[2]}")
+
+        self.op_g1_cards = QLabel(f"{self.op_cards[0]}")
+        self.op_g2_cards = QLabel(f"{self.op_cards[1]}")
+        self.op_g3_cards = QLabel(f"{self.op_cards[2]}")
+
+        # Add things to window
+        # Basic Game Info
+        layout.addWidget(self.p_deck_label, 0, 0)
+        layout.addWidget(self.vs_label, 0, 1)
+        layout.addWidget(self.op_deck_label, 0, 2)
+
+        # Game Labels
+        layout.addWidget(self.g1_label, 1, 0)
+        layout.addWidget(self.g2_label, 1, 2)
+        layout.addWidget(self.g3_label, 1, 4)
+
+        # Cards
+        layout.addWidget(self.p_g1_cards, 2, 0)
+        layout.addWidget(self.op_g1_cards, 2, 1)
+        layout.addWidget(self.p_g2_cards, 2, 2)
+        layout.addWidget(self.op_g2_cards, 2, 3)
+        layout.addWidget(self.p_g3_cards, 2, 4)
+        layout.addWidget(self.op_g3_cards, 2, 5)
+
+        # Setup Window
         self.setLayout(layout)
+
+
 
 
 '''
@@ -151,10 +222,14 @@ class DisplayDriver(QMainWindow):
                 continue
             match_id = self.table.proxy_model.data(idx)
             self.db.cur.execute("SELECT * FROM match_data WHERE match_id = ?", (match_id,))
-            db_row = self.db.cur.fetchone()[0]
+            db_row = self.db.cur.fetchone()
             p = PopOutMatchInfoWindow(db_row)
             self.match_popouts[match_id] = p
             p.show()
+
+    def closeEvent(self, event) -> None:
+        for w in self.match_popouts.values():
+            w.close()
 
 '''
 

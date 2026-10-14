@@ -22,7 +22,7 @@ class ReplayDB:
                  replay_folder: str | None,
                  username: str | None,
                  update_cards: bool = False,
-                 update_decks: bool = True):
+                 update_decks: bool = False):
         self.db_path = db_path
         self.conn = sqlite3.connect(db_path)
         self.cur = self.conn.cursor()
