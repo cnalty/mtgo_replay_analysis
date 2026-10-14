@@ -9,6 +9,15 @@ from .deck_tools.goldfish_scraper import scrape_goldfish
 from tqdm import tqdm
 import sys
 
+class PopOutMatchInfoWindow(QWidget):
+    def __init__(self, match_info):
+        super().__init__()
+        self.match_info = match_info
+        self.setWindowTitle("Match Info")
+        layout = QVBoxLayout()
+        self.setLayout(layout)
+
+
 '''
 
 '''
@@ -41,6 +50,7 @@ class DisplayDriver(QMainWindow):
         # Match Info Widget
         self.table = MTGODataWidget(db)
         self.table.vertical_header.setVisible(False)
+        self.table.table_view.doubleClicked.connect(self.create_match_info_popup)
 
         # Text Info
         win_rate = sum(int(self.table.model.data(self.table.model.createIndex(i, 2))) for i in range(self.table.model.rowCount())) / self.table.model.rowCount() * 100
@@ -59,6 +69,7 @@ class DisplayDriver(QMainWindow):
                        'vintage',
                        'pauper',
                        'premodern',
+                       'cube'
                        'missing'])
         self.format_drop_down.currentTextChanged.connect(self.table.proxy_model.setFilterbyFormat)
         self.format_drop_down.currentTextChanged.connect(self.update_text_info_after_filter)
@@ -99,6 +110,9 @@ class DisplayDriver(QMainWindow):
         widget.setLayout(layout)
         self.setCentralWidget(widget)
 
+        # Prepare for popup windows
+        self.match_popouts = {}
+
 
     def update_text_info_after_filter(self):
         num_rows = self.table.proxy_model.rowCount()
@@ -129,6 +143,19 @@ class DisplayDriver(QMainWindow):
     def assign_decks(self):
         pass
 
+    def create_match_info_popup(self):
+        for idx in self.table.table_view.selectionModel().selectedIndexes():
+            #row_num = idx.row()
+            col_num = idx.column()
+            if col_num != self.table.proxy_model.columnCount() - 1:
+                continue
+            match_id = self.table.proxy_model.data(idx)
+            self.db.cur.execute("SELECT * FROM match_data WHERE match_id = ?", (match_id,))
+            db_row = self.db.cur.fetchone()[0]
+            p = PopOutMatchInfoWindow(db_row)
+            self.match_popouts[match_id] = p
+            p.show()
+
 '''
 
 '''
@@ -138,13 +165,13 @@ class MatchTableModel(QAbstractTableModel):
         # Pre Load Data
         self.db = db
         self.row_data = []
-        self.labels = ("Date", "Opponent", "Win/Loss", "Format", "Player Deck", "Opponent Deck")
+        self.labels = ("Date", "Opponent", "Win/Loss", "Format", "Player Deck", "Opponent Deck", "ID")
 
         # Load Data
         self.load_data()
 
         # Post Load Data
-        self.column_count = 6
+        self.column_count = len(self.labels)
         self.row_count = len(self.row_data)
 
     def load_data(self) -> None:
