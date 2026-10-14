@@ -21,6 +21,7 @@ class MTGOReplay:
                  "five" : 5,
                  "six" : 6,
                  "seven" : 7}
+    basics = ["Island", "Forest", "Swamp", "Plains", "Mountain"]
 
 
     def __init__(self, replay_path):
@@ -62,15 +63,16 @@ class MTGOReplay:
 
             card = re.match(self.card_played_match, self.action_list[i])
             if card is not None:
-
                 if card.group(1) == self.players[0]:
                     self.cards[0][-1].add(card.group(2))
                     if self.is_singleton:
-                        self.is_singleton = (not card.group(2) in self.cards[0][-1])
+                        if not (card.group(2) in self.basics):
+                            self.is_singleton = (not card.group(2) in self.cards[0][-1])
                 elif card.group(1) == self.players[1]:
                     self.cards[1][-1].add(card.group(2))
                     if self.is_singleton:
-                        self.is_singleton = (not card.group(2) in self.cards[1][-1])
+                        if not (card.group(2) in self.basics):
+                            self.is_singleton = (not card.group(2) in self.cards[1][-1])
                 else:
                     warnings.warn(f"Detected played card, but could not match player ({self.players[0], self.players[1]},)for: {self.action_list[i]}")
             is_otp = re.match(self.otp_match, self.action_list[i])

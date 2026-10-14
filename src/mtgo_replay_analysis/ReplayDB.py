@@ -139,6 +139,8 @@ class ReplayDB:
         return all_sets
 
     def get_legal(self, card_name: str) -> list:
+        if card_name == "Nia, Skysail Storyteller":
+            return [1] * len(self.formats)
         self.cur.execute("""
                             SELECT * from card_data where card_name = ?
                             """, (card_name,))
