@@ -49,20 +49,39 @@ class PopOutMatchInfoWindow(QWidget):
 
         # Labels
         #self.op_label = QLabel(f"Opponent: ")
+        game_winners = []
+        for i in range(3):
+            if self.game_wins[i] == 1:
+                game_winners.append(self.player)
+            elif self.game_wins[i] == 0:
+                game_winners.append(self.opponent)
+            else:
+                game_winners.append("N/A")
+
         self.p_deck_label = QLabel(f"{self.p_deck}")
         self.op_deck_label = QLabel(f"{self.opponent} on {self.op_deck}")
         self.vs_label = QLabel("vs.")
-        self.g1_label = QLabel("Game 1")
-        self.g2_label = QLabel("Game 2")
-        self.g3_label = QLabel("Game 3")
+        self.g1_label = QLabel(f"Game 1: Won by {game_winners[0]}")
+        self.g2_label = QLabel(f"Game 2: Won by {game_winners[1]}")
+        self.g3_label = QLabel(f"Game 3: Won by {game_winners[2]}")
+        self.style_sheet_info = ("""QLabel {
+                                        border: 2px solid white;
+                                    }""")
 
         self.p_g1_cards = QLabel(f"{self.p_cards[0]}")
+        self.p_g1_cards.setStyleSheet(self.style_sheet_info)
         self.p_g2_cards = QLabel(f"{self.p_cards[1]}")
+        self.p_g2_cards.setStyleSheet(self.style_sheet_info)
         self.p_g3_cards = QLabel(f"{self.p_cards[2]}")
+        self.p_g3_cards.setStyleSheet(self.style_sheet_info)
 
         self.op_g1_cards = QLabel(f"{self.op_cards[0]}")
+        self.op_g1_cards.setStyleSheet(self.style_sheet_info)
         self.op_g2_cards = QLabel(f"{self.op_cards[1]}")
+        self.op_g2_cards.setStyleSheet(self.style_sheet_info)
         self.op_g3_cards = QLabel(f"{self.op_cards[2]}")
+        self.op_g3_cards.setStyleSheet(self.style_sheet_info)
+
 
         # Add things to window
         # Basic Game Info
@@ -75,13 +94,25 @@ class PopOutMatchInfoWindow(QWidget):
         layout.addWidget(self.g2_label, 1, 2)
         layout.addWidget(self.g3_label, 1, 4)
 
+        # Game Info
+        g1_otp = "Play" if self.otps[0] == 1 else "Draw"
+        g2_otp = "Play" if self.otps[1] == 1 else "Draw"
+        g3_otp = "Play" if self.otps[2] == 1 else "Draw"
+        self.g1_info_w = QLabel(f"On the {g1_otp}. Opened with {self.mulls[0]} Cards")
+        self.g2_info_w = QLabel(f"On the {g2_otp}. Opened with {self.mulls[1]} Cards")
+        self.g3_info_w = QLabel(f"On the {g3_otp}. Opened with {self.mulls[2]} Cards")
+
+        layout.addWidget(self.g1_info_w, 2, 0)
+        layout.addWidget(self.g2_info_w, 2, 2)
+        layout.addWidget(self.g3_info_w, 2, 4)
+
         # Cards
-        layout.addWidget(self.p_g1_cards, 2, 0)
-        layout.addWidget(self.op_g1_cards, 2, 1)
-        layout.addWidget(self.p_g2_cards, 2, 2)
-        layout.addWidget(self.op_g2_cards, 2, 3)
-        layout.addWidget(self.p_g3_cards, 2, 4)
-        layout.addWidget(self.op_g3_cards, 2, 5)
+        layout.addWidget(self.p_g1_cards, 3, 0)
+        layout.addWidget(self.op_g1_cards, 3, 1)
+        layout.addWidget(self.p_g2_cards, 3, 2)
+        layout.addWidget(self.op_g2_cards, 3, 3)
+        layout.addWidget(self.p_g3_cards, 3, 4)
+        layout.addWidget(self.op_g3_cards, 3, 5)
 
         # Setup Window
         self.setLayout(layout)
