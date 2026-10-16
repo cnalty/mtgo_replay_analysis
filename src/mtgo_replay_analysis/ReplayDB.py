@@ -2,6 +2,8 @@ import sqlite3
 import warnings
 import json
 import os
+import gzip
+import io
 from typing import List, Tuple
 
 from mtgo_replay_analysis.MTGOReplay import MTGOReplay
@@ -21,7 +23,7 @@ class ReplayDB:
     def __init__(self, db_path: str,
                  replay_folder: str | None,
                  username: str | None,
-                 update_cards: bool = False,
+                 update_cards: bool = True,
                  update_decks: bool = False):
         self.db_path = db_path
         self.conn = sqlite3.connect(db_path)
@@ -77,56 +79,63 @@ class ReplayDB:
         self.replay_folder = self.get_replay_folder(replay_folder)
         self.username = self.get_username(username)
 
+    def get_scryfall_json(self, save=False):
+        response = requests.get("https://api.scryfall.com/bulk-data/default-cards", headers=self.request_headers)
+        download_url = response.json().get("jsonl_download_uri")
+        gz_response = requests.get(download_url, headers=self.request_headers)
+        compressed_stream = io.BytesIO(gz_response.content)
+        with gzip.GzipFile(fileobj=compressed_stream, mode='rb') as gzf:
+            bulk_data_string = gzf.read().decode('utf-8')
 
+        return bulk_data_string
 
     def update_cards(self):
-        with open("default-cards-20261012090545.jsonl", 'r') as f:
-            num_lines = sum(1 for line in f)
-        with open("default-cards-20261012090545.jsonl", 'r') as f:
-            for line in tqdm(f, desc="Updating card legality", total=num_lines):
-                curr_card = json.loads(line)
+        bulk_data = self.get_scryfall_json()
+        bds_lines = bulk_data.splitlines()
+        for line in tqdm(bds_lines, desc="Updating card legality"):
+            curr_card = json.loads(line)
 
-                # Check for not real cards
-                if 'type_line' not in curr_card.keys():
-                    continue
-                if "Token" in curr_card['type_line']:
-                    continue
-                if "Emblem" == curr_card['type_line']:
-                    continue
-                if curr_card['set_type'] == 'memorabilia':
-                    continue
-                if len(curr_card['games']) == 1 and curr_card['games'][0] == 'arena':
-                    continue
+            # Check for not real cards
+            if 'type_line' not in curr_card.keys():
+                continue
+            if "Token" in curr_card['type_line']:
+                continue
+            if "Emblem" == curr_card['type_line']:
+                continue
+            if curr_card['set_type'] == 'memorabilia':
+                continue
+            if len(curr_card['games']) == 1 and curr_card['games'][0] == 'arena':
+                continue
 
-                # Check if card is split card, split up names for processing purposes
+            # Check if card is split card, split up names for processing purposes
 
-                if r"//" in curr_card['name']:
-                    card_names = curr_card['name'].split(r"//")
-                    card_names = [x.strip() for x in card_names]
-                elif 'printed_name' in curr_card.keys():
-                    card_names = [curr_card['printed_name']]
-                else:
-                    card_names = [curr_card['name']]
+            if r"//" in curr_card['name']:
+                card_names = curr_card['name'].split(r"//")
+                card_names = [x.strip() for x in card_names]
+            elif 'printed_name' in curr_card.keys():
+                card_names = [curr_card['printed_name']]
+            else:
+                card_names = [curr_card['name']]
 
-                printing = curr_card['set']
-                # Process Card
-                legals = []
-                for cformat in self.formats:
-                    legals.append(curr_card['legalities'][cformat] == 'legal' or curr_card['legalities'][cformat] == 'restricted')
-                for card_name in card_names:
-                    self.cur.execute("""
-                            INSERT INTO card_data VALUES
-                                (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                                ON CONFLICT (card_name) DO UPDATE SET
-                                    standard_legal = excluded.standard_legal,
-                                    pioneer_legal = excluded.pioneer_legal,
-                                    modern_legal = excluded.modern_legal,
-                                    legacy_legal = excluded.legacy_legal,
-                                    vintage_legal = excluded.vintage_legal,
-                                    pauper_legal = excluded.pauper_legal,
-                                    premodern_legal = excluded.premodern_legal,
-                                    printings = CONCAT(excluded.printings, ', ', ?)
-                            """, (card_name, *legals, printing, printing))
+            printing = curr_card['set']
+            # Process Card
+            legals = []
+            for cformat in self.formats:
+                legals.append(curr_card['legalities'][cformat] == 'legal' or curr_card['legalities'][cformat] == 'restricted')
+            for card_name in card_names:
+                self.cur.execute("""
+                        INSERT INTO card_data VALUES
+                            (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            ON CONFLICT (card_name) DO UPDATE SET
+                                standard_legal = excluded.standard_legal,
+                                pioneer_legal = excluded.pioneer_legal,
+                                modern_legal = excluded.modern_legal,
+                                legacy_legal = excluded.legacy_legal,
+                                vintage_legal = excluded.vintage_legal,
+                                pauper_legal = excluded.pauper_legal,
+                                premodern_legal = excluded.premodern_legal,
+                                printings = CONCAT(excluded.printings, ', ', ?)
+                        """, (card_name, *legals, printing, printing))
 
         self.conn.commit()
 
