@@ -182,7 +182,7 @@ class DisplayDriver(QMainWindow):
                        'vintage',
                        'pauper',
                        'premodern',
-                       'cube'
+                       'cube',
                        'missing'])
         self.format_drop_down.currentTextChanged.connect(self.table.proxy_model.setFilterbyFormat)
         self.format_drop_down.currentTextChanged.connect(self.update_text_info_after_filter)
@@ -207,6 +207,12 @@ class DisplayDriver(QMainWindow):
         self.date_end_input.dateChanged.connect(self.update_max_date)
         self.date_end_input.setMinimumDate(self.default_min_date)
 
+        # Card Win Rate
+        self.card_wr_card_label = QLabel("Card: ")
+        self.card_wr_input = QLineEdit()
+        self.card_wr = QLabel("--.--% (-/-)")
+
+        self.card_wr_input.textEdited.connect(self.get_card_winrate)
 
         # Place Widgets
         layout.addWidget(self.table, 0, 0, 10, 1)
@@ -218,6 +224,10 @@ class DisplayDriver(QMainWindow):
         layout.addWidget(self.date_begin_input, 3, 2)
         layout.addWidget(self.date_end_label, 4, 1)
         layout.addWidget(self.date_end_input, 4, 2)
+
+        layout.addWidget(self.card_wr_card_label, 5, 1)
+        layout.addWidget(self.card_wr_input, 5, 2)
+        layout.addWidget(self.card_wr, 6, 1, 1, 2)
 
         # Make Main Window
         widget = QWidget()
@@ -238,6 +248,7 @@ class DisplayDriver(QMainWindow):
 
         self.win_rate_widget.setText(f"Win Rate: {win_rate:.2f}%")
         self.matches_played_widget.setText(f"Matches Played: {num_rows}")
+        self.get_card_winrate()
 
     def update_min_date(self):
         d_min = self.date_begin_input.date()
@@ -346,6 +357,34 @@ class DisplayDriver(QMainWindow):
         w.setLayout(layout)
         w.exec()
 
+    def get_card_winrate(self):
+        card_name = self.card_wr_input.text()
+        if card_name == "":
+            self.card_wr.setText("--.--% (-/-)")
+            return
+        games_with_card = 0
+        games_card_won = 0
+        for row in range(self.table.proxy_model.rowCount()):
+            curr_idx = self.table.proxy_model.index(row, 0)
+            match_id = self.table.proxy_model.data(curr_idx, role=Qt.ItemDataRole.UserRole)
+            self.db.cur.execute("""
+                                SELECT g1_win, g2_win, g3_win, g1_p_cards, g2_p_cards, g3_p_cards
+                                FROM match_data
+                                WHERE match_id = ?
+                                """, (match_id,))
+            match_info = self.db.cur.fetchone()
+            for i in range(3):
+                if card_name in match_info[i+3]:
+                    games_with_card += 1
+                    if match_info[i] == 1:
+                        games_card_won += 1
+        if games_with_card == 0:
+            self.card_wr.setText("No Games With Card")
+            return
+        wr = games_card_won / games_with_card * 100
+        self.card_wr.setText(f"{wr:.2f}% ({games_card_won}/{games_with_card})")
+
+
 
 '''
 
@@ -410,9 +449,9 @@ class MTGOSortFilterProxyModel(QSortFilterProxyModel):
         self.filters[0] = (start_date, end_date)
         self.endFilterChange()
 
-    def setFilterbyFormat(self, format):
+    def setFilterbyFormat(self, deck_format):
         self.beginFilterChange()
-        self.filters[3] = format.lower()
+        self.filters[3] = deck_format.lower()
         self.endFilterChange()
 
     def filterAcceptsColumn(self, source_column, source_parent):
