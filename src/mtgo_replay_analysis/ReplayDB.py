@@ -160,9 +160,13 @@ class ReplayDB:
                         FROM card_data
                         WHERE card_name = ?
                         """, (card_name,))
-        printings = self.cur.fetchone()[0]
-        printings = printings.split(", ")
-        return printings
+        try:
+            printings = self.cur.fetchone()[0]
+            printings = printings.split(", ")
+            return printings
+        except TypeError:
+            warnings.warn(f"Card ({card_name}) not found, returning '$$$' as printings")
+            return ["$$$"]
 
     # Initialize replay folder
     def get_replay_folder(self, replay_folder: str | None) -> str:

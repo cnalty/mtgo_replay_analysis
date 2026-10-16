@@ -1,10 +1,11 @@
 import typing
 from PySide6.QtWidgets import (QWidget, QMainWindow, QVBoxLayout, QLabel, QTableView,
                                QHeaderView, QHBoxLayout, QSizePolicy, QGridLayout, QComboBox,
-                               QHBoxLayout, QDateTimeEdit,)
+                               QHBoxLayout, QDateTimeEdit, QLineEdit, QDialog, QDialogButtonBox)
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt, QSortFilterProxyModel, QDate
 from PySide6.QtGui import QIcon, QKeySequence
 from mtgo_replay_analysis.ReplayDB import ReplayDB
+import os
 from .deck_tools.goldfish_scraper import scrape_goldfish
 from tqdm import tqdm
 import sys
@@ -143,11 +144,21 @@ class DisplayDriver(QMainWindow):
         file_menu = self.menu.addMenu("File")
         options_menu = self.menu.addMenu("Options")
 
-        # Exit QAction
+        # File Buttons
         file_menu.addAction(QIcon.fromTheme(QIcon.ThemeIcon.ApplicationExit),
                             "Exit", QKeySequence.StandardKey.Quit, self.close)
         file_menu.addAction("Update Decks", self.db.update_decks)
         file_menu.addAction("Assign Decks", self.assign_decks)
+
+        # Options Buttons
+        date_format_menu = options_menu.addMenu("Date Format")
+        date_format_menu.addAction("MM/DD/YYYY", lambda: self.update_date_format("MM/dd/yyyy"))
+        date_format_menu.addAction("DD/MM/YYYY", lambda: self.update_date_format("dd/MM/yyyy"))
+
+        options_menu.addAction("Set Replay Folder Location", self.update_replay_folder_menu)
+        options_menu.addAction("Set MTGO Username", self.update_username_menu)
+
+        self.autosave = True
 
         # Match Info Widget
         self.table = MTGODataWidget(db)
@@ -179,6 +190,7 @@ class DisplayDriver(QMainWindow):
         self.format_label = QLabel("Format:")
 
         # Date Stuff
+        self.date_format = "MM/dd/yyyy"
         self.date_begin_label = QLabel("Start Date:")
         self.date_end_label = QLabel("End Date:")
 
@@ -186,12 +198,12 @@ class DisplayDriver(QMainWindow):
         self.default_max_date = QDate(2099, 1, 1)
 
         self.date_begin_input = QDateTimeEdit(self.default_min_date)
-        self.date_begin_input.setDisplayFormat("MM/dd/yyyy")
+        self.date_begin_input.setDisplayFormat(self.date_format)
         self.date_begin_input.dateChanged.connect(self.update_min_date)
         self.date_begin_input.setMaximumDate(self.default_max_date)
 
         self.date_end_input = QDateTimeEdit(self.default_max_date)
-        self.date_end_input.setDisplayFormat("MM/dd/yyyy")
+        self.date_end_input.setDisplayFormat(self.date_format)
         self.date_end_input.dateChanged.connect(self.update_max_date)
         self.date_end_input.setMinimumDate(self.default_min_date)
 
@@ -261,6 +273,79 @@ class DisplayDriver(QMainWindow):
     def closeEvent(self, event) -> None:
         for w in self.match_popouts.values():
             w.close()
+
+    def update_date_format(self, date_format: str) -> None:
+        self.date_format = date_format
+        self.date_begin_input.setDisplayFormat(self.date_format)
+        self.date_end_input.setDisplayFormat(self.date_format)
+
+    def update_replay_folder_menu(self):
+        w = QDialog()
+        layout = QVBoxLayout()
+        info_box = QLineEdit()
+        self.db.cur.execute("""
+                        SELECT info FROM metadata 
+                        WHERE name = 'replay_folder'
+                        """)
+        curr_folder = self.db.cur.fetchone()
+        info_box.setText(curr_folder[0])
+
+        def update_replay_folder():
+            if os.path.isdir(info_box.text()):
+                self.db.cur.execute("""
+                                    REPLACE into metadata VALUES
+                                    ('replay_folder', ?)
+                                    """, (info_box.text(),))
+                if self.autosave:
+                    self.db.conn.commit()
+                w.close()
+            else:
+                print("Invalid Folder")
+
+        btn = ( QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
+        btn_box = QDialogButtonBox(btn)
+        btn_box.accepted.connect(update_replay_folder)
+        btn_box.rejected.connect(w.close)
+
+        layout.addWidget(info_box)
+        layout.addWidget(btn_box)
+        w.setLayout(layout)
+        w.exec()
+
+
+
+
+    def update_username_menu(self):
+        w = QDialog()
+        layout = QVBoxLayout()
+        info_box = QLineEdit()
+        self.db.cur.execute("""
+                                SELECT info FROM metadata 
+                                WHERE name = 'username'
+                                """)
+        curr_folder = self.db.cur.fetchone()
+        info_box.setText(curr_folder[0])
+
+        def update_username():
+            self.db.cur.execute("""
+                                REPLACE into metadata VALUES
+                                ('username', ?)
+                                """, (info_box.text(),))
+            if self.autosave:
+                self.db.conn.commit()
+            w.close()
+
+
+        btn = (QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
+        btn_box = QDialogButtonBox(btn)
+        btn_box.accepted.connect(update_username)
+        btn_box.rejected.connect(w.close)
+
+        layout.addWidget(info_box)
+        layout.addWidget(btn_box)
+        w.setLayout(layout)
+        w.exec()
+
 
 '''
 
