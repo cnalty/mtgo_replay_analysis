@@ -23,7 +23,7 @@ class ReplayDB:
     def __init__(self, db_path: str,
                  replay_folder: str | None,
                  username: str | None,
-                 update_cards: bool = True,
+                 update_cards: bool = False,
                  update_decks: bool = False):
         self.db_path = db_path
         self.conn = sqlite3.connect(db_path)
@@ -320,9 +320,133 @@ class ReplayDB:
                 return ""
         if could_be_limited:
             return "limited"
+
+        if possible_formats[4] or possible_formats[3]: # Vintage
+            if self.detect_cube(all_cards):
+                return "cube"
+
         for i in range(len(possible_formats)):
             if possible_formats[i]:
                 return self.formats[i]
+
+    def detect_cube(self, all_cards) -> bool:
+        cube_unique_cards = [
+            # White
+            "Enduring Innocence",
+            "Sanguine Evangelist",
+            "Oust",
+            "Winds of Abandon",
+            "Sunfall",
+            "Parallax Wave",
+
+            # Blue
+            "Faerie Mastermind",
+            "Jace, Vryn's Prodigy",
+            "Malcolm, Alluring Scoundrel",
+            "Forensic Gadgeteer",
+            "Seasoned Cryomancer",
+            "Urza, Lord High Artificer",
+            "Occult Epiphany",
+            "Lose Focus",
+            "Memory Lapse",
+            "Miscalculation",
+            "Mystic Confluence",
+            "Upheaval",
+
+            # Black
+            "Harvester of Misery",
+            "Concealing Curtains",
+            "Black Widow, Super Spy",
+            "Iron-Shield Elf",
+            "Crabomination",
+            "Bitter Triumph",
+            "Infernal Grasp",
+            "Bone Shards",
+            "Mind Twist",
+            "Recurring Nightmare",
+            
+            # Red
+            "Orcish Lumberjack",
+            "Voldaren Epicure",
+            "Batroc the Leaper",
+            "Embereth Shieldbreaker",
+            "Gau, Feral Youth",
+            "Generous Plunderer",
+            "Inti, Seneschal of the Sun",
+            "Ivora, Insatiable Heir",
+            "Samut, Hazoret's Champion"
+            "Death-Greeter's Champion",
+            "Gut, True Soul Zealot",
+            "Headliner Scarlett",
+            "Etali, Primal Conqueror",
+            "Mine Collapse",
+            "Firebolt",
+            "Impractical Joke",
+            "Fiery Confluence",
+
+            # Green
+            "Fanatic of Rhonas",
+            "Emeritus of Abundance",
+            "Sentinel of the Nameless City",
+            "Six",
+            "Tireless Tracker",
+            "Ursine Monstrosity",
+            "Baloth Prime",
+            "Icetill Explorer",
+            "Ouroboroid",
+            "Titania, Protector of Argoth",
+            "Vaultborn Tyrant",
+            "Woodfall Primus",
+            "Worldspine Wurm",
+            "Nissa, Who Shakes the World",
+            "Pest Infestation",
+            "Esika's Chariot"
+            
+            # Colorless
+            "Myr Battlesphere",
+            "Karn, Scion of Urza",
+            "Everflowing Chalice",
+            "Skullclamp",
+            "Mind Stone",
+            "Pentad Prism",
+            "Smuggler's Copter",
+            "Coalition Relic",
+            "Palantir of Orthanc",
+            "Memory Jar"
+
+            # Multicolored
+            "No More Lies",
+            "Shorikai, Genesis Engine",
+            "Fallen Shinobi",
+            "Bloodtithe Harvester",
+            "Carnage Interpreter",
+            "Fire Covenant",
+            "Kolaghan's Command",
+            "Bloodbraid Challenger",
+            "Vibrance",
+            "Figure of Fable",
+            "Brightglass Gearhulk",
+            "Torsten, Founder of Benalia",
+            "Third Path Iconoclast",
+            "Traumatic Critique",
+            "Saheeli, Sublime Artificer",
+            "Vivi Ornitier",
+            "Pillage the Bog",
+            "Tear Asunder",
+            "Otharri, Suns' Glory",
+            "Tamiyo, Collector of Tales",
+            "Wistfulness",
+
+            # Lands
+        ]
+        for card in all_cards:
+            if card in cube_unique_cards:
+                return True
+
+        return False
+
+
+
 
 
 
