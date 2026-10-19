@@ -396,6 +396,7 @@ class MatchTableModel(QAbstractTableModel):
         self.db = db
         self.row_data = []
         self.labels = ("Date", "Opponent", "Win/Loss", "Format", "Player Deck", "Opponent Deck", "ID")
+        self.db_column_names = ("match_date", "opponent", "match_win", "format", "player_deck", "opponent_deck", "match_id")
 
         # Load Data
         self.load_data()
@@ -434,6 +435,27 @@ class MatchTableModel(QAbstractTableModel):
             # Return Match ID, used to know where to edit db
             return str(self.row_data[row][-1])
         return None
+
+    def flags(self, index):
+        if not index.isValid():
+            return Qt.ItemFlag.ItemIsEnabled
+
+        return super().flags(index) | Qt.ItemFlag.ItemIsEditable
+
+    def setData(self, index, value, role=Qt.ItemDataRole.EditRole):
+        if role == Qt.ItemDataRole.EditRole:
+            column = index.column()
+            row = index.row()
+            self.row_data[row][column] = value
+            match_id = self.row_data[row][-1]
+            self.db.cur.execute(f"""
+                                UPDATE match_data
+                                SET {self.db_column_names[column]} = ?
+                                WHERE match_id = ?
+                                """, (value, match_id))
+            self.db.conn.commit()
+            return True
+        return False
 
 '''
 
