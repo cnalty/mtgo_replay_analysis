@@ -1,19 +1,16 @@
 from argparse import ArgumentParser
-from MTGOReplay import MTGOReplay
-from ReplayDB import ReplayDB
+from .ReplayDB import ReplayDB
+from .display import DisplayDriver
+from PySide6.QtWidgets import QApplication
+import sys
 
 def main(args):
     db = ReplayDB(args.db, args.replay_folder, args.username)
     db.add_all()
-    for row in db.cur.execute("SELECT * FROM match_data"):
-        print(row)
-    db.cur.execute("""
-                    SELECT SUM(match_win) FROM match_data
-                    """)
-    wins = db.cur.fetchone()[0]
-    db.cur.execute("SELECT COUNT(match_id) FROM match_data")
-    matches = db.cur.fetchone()[0]
-    print(wins / matches * 100)
+    app = QApplication()
+    window = DisplayDriver(db)
+    window.show()
+    sys.exit(app.exec())
 
 
 def parse_arguments():
@@ -28,4 +25,5 @@ def parse_arguments():
 
 if __name__ == '__main__':
     args = parse_arguments()
+    print(args.db)
     main(args)

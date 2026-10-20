@@ -181,11 +181,12 @@ class ReplayDB:
     def get_replay_folder(self, replay_folder: str | None) -> str:
         # Replay folder wasn't specified, verify it is in db and return result
         if replay_folder is None:
-            res = self.cur.execute("SELECT info FROM metadata WHERE name = replay_folder")
-            if res.fetchone() is None:
+            res = self.cur.execute("SELECT info FROM metadata WHERE name = 'replay_folder'")
+            res = res.fetchone()
+            if res is None:
                 raise LookupError("Replay folder not specified and not saved in DB, rerun with the --replay-folder argument")
             else:
-                return res.fetchone()[0]
+                return res[0]
         # New replay folder, add/update db return specified folder
         else:
             self.cur.execute("""CREATE table if not exists metadata(name text PRIMARY KEY, 
@@ -202,12 +203,13 @@ class ReplayDB:
         # Username wasn't specified, verify it is in db and return result
         if username is None:
             res = self.cur.execute("""SELECT info FROM metadata
-                                        WHERE name = username""")
-            if res.fetchone() is None:
+                                        WHERE name = 'username'""")
+            res = res.fetchone()
+            if res is None:
                 raise LookupError(
                     "Username not specified and not saved in DB, rerun with the --username argument")
             else:
-                return res.fetchone()[0]
+                return res[0]
         # Insert username into db and return username
         else:
             self.cur.execute("""INSERT or REPLACE INTO metadata (name, info) VALUES
