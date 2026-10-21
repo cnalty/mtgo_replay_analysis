@@ -13,7 +13,7 @@ import sys
 class PopOutMatchInfoWindow(QWidget):
     def __init__(self, match_info):
         super().__init__()
-        print(match_info)
+
         self.match_info = match_info
 
         self.match_id = match_info[0]
@@ -440,21 +440,24 @@ class MatchTableModel(QAbstractTableModel):
     def flags(self, index):
         if not index.isValid():
             return Qt.ItemFlag.ItemIsEnabled
-
-        return super().flags(index) | Qt.ItemFlag.ItemIsEditable
+        if index.column() != self.column_count - 1:
+            return super().flags(index) | Qt.ItemFlag.ItemIsEditable
+        else:
+            return super().flags(index)
 
     def setData(self, index, value, role=Qt.ItemDataRole.EditRole):
         if role == Qt.ItemDataRole.EditRole:
             column = index.column()
             row = index.row()
-            self.row_data[row][column] = value
-            match_id = self.row_data[row][-1]
-            self.db.cur.execute(f"""
-                                UPDATE match_data
-                                SET {self.db_column_names[column]} = ?
-                                WHERE match_id = ?
-                                """, (value, match_id))
-            self.db.conn.commit()
+            if value != "":
+                self.row_data[row][column] = value
+                match_id = self.row_data[row][-1]
+                self.db.cur.execute(f"""
+                                    UPDATE match_data
+                                    SET {self.db_column_names[column]} = ?
+                                    WHERE match_id = ?
+                                    """, (value, match_id))
+                self.db.conn.commit()
             return True
         return False
 
