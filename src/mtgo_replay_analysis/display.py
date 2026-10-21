@@ -210,6 +210,7 @@ class DisplayDriver(QMainWindow):
         # Card Win Rate
         self.card_wr_card_label = QLabel("Card: ")
         self.card_wr_input = QLineEdit()
+        self.card_wr_input.setMaximumWidth(150)
         self.card_wr = QLabel("--.--% (-/-)")
 
         self.card_wr_input.textEdited.connect(self.get_card_winrate)
