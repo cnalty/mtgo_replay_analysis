@@ -69,19 +69,25 @@ class PopOutMatchInfoWindow(QWidget):
                                         border: 2px solid white;
                                     }""")
 
-        self.p_g1_cards = QLabel(f"{self.p_cards[0]}")
+        self.p_g1_cards = QLabel(f"Player Cast:\n{self.p_cards[0]}")
         self.p_g1_cards.setStyleSheet(self.style_sheet_info)
-        self.p_g2_cards = QLabel(f"{self.p_cards[1]}")
+        self.p_g1_cards.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self.p_g2_cards = QLabel(f"Player Cast:\n{self.p_cards[1]}")
         self.p_g2_cards.setStyleSheet(self.style_sheet_info)
-        self.p_g3_cards = QLabel(f"{self.p_cards[2]}")
+        self.p_g2_cards.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self.p_g3_cards = QLabel(f"Player Cast:\n{self.p_cards[2]}")
         self.p_g3_cards.setStyleSheet(self.style_sheet_info)
+        self.p_g3_cards.setAlignment(Qt.AlignmentFlag.AlignTop)
 
-        self.op_g1_cards = QLabel(f"{self.op_cards[0]}")
+        self.op_g1_cards = QLabel(f"Opponent Cast:\n{self.op_cards[0]}")
         self.op_g1_cards.setStyleSheet(self.style_sheet_info)
-        self.op_g2_cards = QLabel(f"{self.op_cards[1]}")
+        self.op_g1_cards.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self.op_g2_cards = QLabel(f"Opponent Cast:\n{self.op_cards[1]}")
         self.op_g2_cards.setStyleSheet(self.style_sheet_info)
-        self.op_g3_cards = QLabel(f"{self.op_cards[2]}")
+        self.op_g2_cards.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self.op_g3_cards = QLabel(f"Opponent Cast:\n{self.op_cards[2]}")
         self.op_g3_cards.setStyleSheet(self.style_sheet_info)
+        self.op_g3_cards.setAlignment(Qt.AlignmentFlag.AlignTop)
 
 
         # Add things to window
@@ -167,7 +173,7 @@ class DisplayDriver(QMainWindow):
 
         # Text Info
         win_rate = sum(int(self.table.model.data(self.table.model.createIndex(i, 2))) for i in range(self.table.model.rowCount())) / self.table.model.rowCount() * 100
-        self.win_rate_widget = QLabel(f"Win Rate: {win_rate:.2f}%")
+        self.win_rate_widget = QLabel(f"Match Win Rate: {win_rate:.2f}%")
 
         matches_played = self.table.model.rowCount()
         self.matches_played_widget = QLabel(f"Matches Played: {matches_played}")
@@ -211,7 +217,7 @@ class DisplayDriver(QMainWindow):
         self.card_wr_card_label = QLabel("Card: ")
         self.card_wr_input = QLineEdit()
         self.card_wr_input.setMaximumWidth(150)
-        self.card_wr = QLabel("--.--% (-/-)")
+        self.card_wr = QLabel("--.--% (-/- games won)")
 
         self.card_wr_input.textEdited.connect(self.get_card_winrate)
 
@@ -247,7 +253,7 @@ class DisplayDriver(QMainWindow):
             win_rate =  sum(int(self.table.proxy_model.data(self.table.proxy_model.index(i, 2))) for i in
                        range(num_rows)) / num_rows * 100
 
-        self.win_rate_widget.setText(f"Win Rate: {win_rate:.2f}%")
+        self.win_rate_widget.setText(f"Match Win Rate: {win_rate:.2f}%")
         self.matches_played_widget.setText(f"Matches Played: {num_rows}")
         self.get_card_winrate()
 
@@ -361,7 +367,7 @@ class DisplayDriver(QMainWindow):
     def get_card_winrate(self):
         card_name = self.card_wr_input.text()
         if card_name == "":
-            self.card_wr.setText("--.--% (-/-)")
+            self.card_wr.setText("--.--% (-/- games won)")
             return
         games_with_card = 0
         games_card_won = 0
@@ -383,7 +389,7 @@ class DisplayDriver(QMainWindow):
             self.card_wr.setText("No Games With Card")
             return
         wr = games_card_won / games_with_card * 100
-        self.card_wr.setText(f"{wr:.2f}% ({games_card_won}/{games_with_card})")
+        self.card_wr.setText(f"{wr:.2f}% ({games_card_won}/{games_with_card} games won)")
 
 
 
